@@ -79,54 +79,33 @@ static void gpio_task_example(void* arg)
 //     idx++;
 // }
 
+static int leds_upper[3] = { 0, 0, 0 };
+static int leds_lower[3] = { 0, 0, 0 };
+
 static void blink_led(void)
 {
     /* If the addressable LED is enabled */
-    if (s_led_state) {
-        // /* Set the LED pixel using RGB from 0 (0%) to 255 (100%) for each color */
-        // led_strip_set_pixel(led_strip,  0,  0,  0, 16);
-        // led_strip_set_pixel(led_strip,  1,  0, 16,  0);
-        // led_strip_set_pixel(led_strip,  2, 16,  0,  0);
-        // led_strip_set_pixel(led_strip,  3, 16, 16, 16);
-        // //
-        // led_strip_set_pixel(led_strip,  4,  0,  0, 16);
-        // led_strip_set_pixel(led_strip,  5,  0, 16,  0);
-        // led_strip_set_pixel(led_strip,  6, 16,  0,  0);
-        // led_strip_set_pixel(led_strip,  7, 16, 16, 16);
-        // //
-        // led_strip_set_pixel(led_strip,  8,  0,  0, 16);
-        // led_strip_set_pixel(led_strip,  9,  0, 16,  0);
-        // led_strip_set_pixel(led_strip, 10, 16,  0,  0);
-        // led_strip_set_pixel(led_strip, 11, 16, 16, 16);
-        // //
-        // led_strip_set_pixel(led_strip, 12,  0,  0, 16);
-        // led_strip_set_pixel(led_strip, 13,  0, 16,  0);
-        // led_strip_set_pixel(led_strip, 14, 16,  0,  0);
-        // led_strip_set_pixel(led_strip, 15, 16, 16, 16);
-
-        /* Set the LED pixel using RGB from 0 (0%) to 255 (100%) for each color */
-        
-        led_strip_set_pixel(led_strip,  0,  0,  0, 16);
-        led_strip_set_pixel(led_strip,  1,  0,  0, 16);
-        led_strip_set_pixel(led_strip,  2,  0,  0, 16);
-        led_strip_set_pixel(led_strip,  3,  0,  0, 16);
+    if (s_led_state) {      
         //
-        led_strip_set_pixel(led_strip,  4,  0,  0, 16);
-        led_strip_set_pixel(led_strip,  5,  0,  0, 16);
-        led_strip_set_pixel(led_strip,  6,  0,  0, 16);
-        led_strip_set_pixel(led_strip,  7,  0,  0, 16);
+        led_strip_set_pixel(led_strip,  0,  leds_lower[0],  leds_lower[1], leds_lower[2]);
+        led_strip_set_pixel(led_strip,  1,  leds_lower[0],  leds_lower[1], leds_lower[2]);
+        led_strip_set_pixel(led_strip,  2,  leds_lower[0],  leds_lower[1], leds_lower[2]);
+        led_strip_set_pixel(led_strip,  3,  leds_lower[0],  leds_lower[1], leds_lower[2]);
         //
-        led_strip_set_pixel(led_strip,  8,  16,  0,  0);
-        led_strip_set_pixel(led_strip,  9,  16,  0,  0);
-        led_strip_set_pixel(led_strip, 10,  16,  0,  0);
-        led_strip_set_pixel(led_strip, 11,  16,  0,  0);
+        led_strip_set_pixel(led_strip,  4,  leds_lower[0],  leds_lower[1], leds_lower[2]);
+        led_strip_set_pixel(led_strip,  5,  leds_lower[0],  leds_lower[1], leds_lower[2]);
+        led_strip_set_pixel(led_strip,  6,  leds_lower[0],  leds_lower[1], leds_lower[2]);
+        led_strip_set_pixel(led_strip,  7,  leds_lower[0],  leds_lower[1], leds_lower[2]);
         //
-        led_strip_set_pixel(led_strip, 12,  16,  0,  0);
-        led_strip_set_pixel(led_strip, 13,  16,  0,  0);
-        led_strip_set_pixel(led_strip, 14,  16,  0,  0);
-        led_strip_set_pixel(led_strip, 15,  16,  0,  0);
-
-
+        led_strip_set_pixel(led_strip,  8,  leds_upper[0],  leds_upper[1], leds_upper[2]);
+        led_strip_set_pixel(led_strip,  9,  leds_upper[0],  leds_upper[1], leds_upper[2]);
+        led_strip_set_pixel(led_strip, 10,  leds_upper[0],  leds_upper[1], leds_upper[2]);
+        led_strip_set_pixel(led_strip, 11,  leds_upper[0],  leds_upper[1], leds_upper[2]);
+        //
+        led_strip_set_pixel(led_strip, 12,  leds_upper[0],  leds_upper[1], leds_upper[2]);
+        led_strip_set_pixel(led_strip, 13,  leds_upper[0],  leds_upper[1], leds_upper[2]);
+        led_strip_set_pixel(led_strip, 14,  leds_upper[0],  leds_upper[1], leds_upper[2]);
+        led_strip_set_pixel(led_strip, 15,  leds_upper[0],  leds_upper[1], leds_upper[2]);
 
         //
         /* Refresh the strip to send data */
@@ -212,6 +191,9 @@ static void configure_led(void)
 #error "unsupported LED type"
 #endif
 
+static bool up = true;
+static int val = 0;
+
 void app_main(void)
 {
     /* Configure the peripheral according to the LED type */
@@ -220,12 +202,34 @@ void app_main(void)
 
     while (1) {
         if (op_mode) {
-            ESP_LOGI(TAG, "Turning the LED %s!", s_led_state == true ? "ON" : "OFF");
+            //ESP_LOGI(TAG, "Turning the LED %s!", s_led_state == true ? "ON" : "OFF");
             blink_led();
-            // blink_led2();
             /* Toggle the LED state */
-            s_led_state = !s_led_state;
+            //s_led_state = !s_led_state;
+            
+            s_led_state = true;
+
+
+            if (up) {
+                if (val < 150) {
+                    val = val + 10;
+                } else {
+                    up = !up;
+                }
+            } else {
+                if (val > 10) {
+                    val = val - 10;
+                } else {
+                    up = !up;
+                }
+            }
+            
+            // upper red
+            leds_upper[0] = val;
+            leds_lower[2] = 150 - val;
         }
-        vTaskDelay(CONFIG_BLINK_PERIOD / portTICK_PERIOD_MS);
+        //vTaskDelay(CONFIG_BLINK_PERIOD / portTICK_PERIOD_MS);
+        vTaskDelay(50 / portTICK_PERIOD_MS);
     }
 }
+
