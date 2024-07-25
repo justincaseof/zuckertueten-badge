@@ -52,32 +52,51 @@ static void gpio_task_example(void* arg)
             
             // only act on falling edges
             if (level == 1) {
-                op_mode = !op_mode;
+                op_mode = (op_mode+1) % 4;
+                printf("New mode: %d\n", op_mode);
             }
         }
     }
 }
 
-// static int idx = 0;
-// static int num_leds = 16;
-// static int patterns[4][3] = {
-//     { 0,  0, 16},
-//     { 0, 16,  0},
-//     {16,  0,  0},
-//     {16, 16, 16}
-// };
-// static void blink_led2(void)
-// {
-//     int i;
-//     for (i = num_leds; i > 0; i--) {
-//         int _idx = ((i-1)+idx) % num_leds;
-//         int pat[] = patterns[_idx%4];
-//         led_strip_set_pixel(led_strip, _idx, pat[0],  pat[1], pat[2]);
+static int NUM_LEDS = 16;
+static int idx = 0;
+static int patterns[16][3] = {
+    { 0,  0,  8},
+    { 0,  0,  0},
+    { 0,  8,  0},
+    { 0,  0,  0},
 
-//         vTaskDelay(63 / portTICK_PERIOD_MS);
-//     }
-//     idx++;
-// }
+    { 0,  0,  0},
+    { 0,  0,  0},
+    { 0,  0,  0},
+    { 0,  0,  0},
+    
+    { 0,  0,  0},
+    { 0,  0,  0},
+    { 0,  0,  0},
+    { 0,  0,  0},
+    
+    { 0,  0,  0},
+    { 0,  0,  0},
+    { 0,  0,  0},
+    { 0,  0,  0},
+};
+static void blink_led2(void)
+{
+    int i;
+    for (i = 0; i < NUM_LEDS; i++) {
+        int _idx = (idx + i) % NUM_LEDS;
+        int *pat = &patterns[_idx];
+        led_strip_set_pixel(led_strip, i, pat[0],  pat[1], pat[2]);
+
+        //printf("LED[%d] %d, %d, %d\n", i, pat[0],  pat[1], pat[2]);
+
+        //vTaskDelay(63 / portTICK_PERIOD_MS);
+    }
+    idx++;
+    led_strip_refresh(led_strip);
+}
 
 static int leds_upper[3] = { 0, 0, 0 };
 static int leds_lower[3] = { 0, 0, 0 };
@@ -201,32 +220,39 @@ void app_main(void)
     configure_btn();
 
     while (1) {
-        if (op_mode) {
-            //ESP_LOGI(TAG, "Turning the LED %s!", s_led_state == true ? "ON" : "OFF");
-            blink_led();
-            /* Toggle the LED state */
-            //s_led_state = !s_led_state;
-            
-            s_led_state = true;
+        switch (op_mode % 4) {
+            case 1:
+                blink_led();
+                s_led_state = true;
 
-
-            if (up) {
-                if (val < 150) {
-                    val = val + 10;
+                if (up) {
+                    if (val < 150) {
+                        val = val + 10;
+                    } else {
+                        up = !up;
+                    }
                 } else {
-                    up = !up;
+                    if (val > 10) {
+                        val = val - 10;
+                    } else {
+                        up = !up;
+                    }
                 }
-            } else {
-                if (val > 10) {
-                    val = val - 10;
-                } else {
-                    up = !up;
-                }
-            }
-            
-            // upper red
-            leds_upper[0] = val;
-            leds_lower[2] = 150 - val;
+                
+                // upper red
+                leds_upper[0] = val;
+                leds_lower[2] = 150 - val;
+                break;
+            case 2:
+                blink_led2();
+                break;
+            case 3:
+                 led_strip_clear(led_strip);
+                 led_strip_refresh(led_strip);
+                 break;
+            default:
+                // "PAUSE"
+                break;
         }
         //vTaskDelay(CONFIG_BLINK_PERIOD / portTICK_PERIOD_MS);
         vTaskDelay(50 / portTICK_PERIOD_MS);
