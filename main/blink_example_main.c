@@ -97,6 +97,10 @@ static int red_hue = 0;
 static int red_hue_direction = 0; // 0=up, 1=down
 static int red_hue_lower = 0;
 static int red_hue_upper = 60;
+static int blue_hue = 0;
+static int blue_hue_direction = 0; // 0=up, 1=down
+static int blue_hue_lower = 0;
+static int blue_hue_upper = 60;
 static void adapt_hue() {
     if (red_hue_direction == 0) {
         red_hue++;
@@ -111,6 +115,9 @@ static void adapt_hue() {
         red_hue_direction = 1;  // now: DOWN!
     }
     //printf("  >>> RED: %d\n", red_hue);
+
+    // TODO
+    blue_hue = red_hue;
 }
 
 static void blink_led2(void)
@@ -123,7 +130,19 @@ static void blink_led2(void)
             int pat_idx = (i + j + (idx*step))%(NUM_LEDS);
             int *pat = &patterns[pat_idx];
             //led_strip_set_pixel(led_strip, led_idx, pat[0],  pat[1], pat[2]);
-            led_strip_set_pixel(led_strip, led_idx, red_hue,  pat[1], pat[2]);
+            
+            int r = pat[0];
+            int g = pat[1];
+            int b = pat[2];
+            if (led_idx < 8 && led_idx >= 0) {
+                r += red_hue;
+            }
+            if (led_idx >= 8 && led_idx < NUM_LEDS) {
+                b += blue_hue;
+            }
+
+            led_strip_set_pixel(led_strip, led_idx, r,  g, b);
+            
             //printf("LED[%d] with PAT[%d] -- %d, %d, %d\n", led_idx, pat_idx, pat[0],  pat[1], pat[2]);
         }
 
