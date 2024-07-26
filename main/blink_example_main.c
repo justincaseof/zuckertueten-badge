@@ -73,9 +73,9 @@ static void gpio_task_example(void* arg)
 static int NUM_LEDS = 16;
 static int idx = 0;
 static int patterns[16][3] = {
-    { 0,  0,  8},
+    { 0,  0,  32},
+    { 0,  32,  0},
     { 0,  0,  0},
-    { 0,  8,  0},
     { 0,  0,  0},
 
     { 0,  0,  0},
@@ -95,11 +95,16 @@ static int patterns[16][3] = {
 };
 static void blink_led2(void)
 {
-    int i;
-    for (i = 0; i < NUM_LEDS; i++) {
-        int _idx = (idx + i) % NUM_LEDS;
-        int *pat = &patterns[_idx];
-        led_strip_set_pixel(led_strip, i, pat[0],  pat[1], pat[2]);
+    int step = 4;   // should be devidable by 2
+    int i,j;
+    for (i = 0; i < NUM_LEDS; i+=step) {
+        for (j=0; j<step; j++) {
+            int led_idx = i + j;
+            int pat_idx = (i + j + (idx*step))%(NUM_LEDS);
+            int *pat = &patterns[pat_idx];
+            led_strip_set_pixel(led_strip, led_idx, pat[0],  pat[1], pat[2]);
+            //printf("LED[%d] with PAT[%d] -- %d, %d, %d\n", led_idx, pat_idx, pat[0],  pat[1], pat[2]);
+        }
 
         //printf("LED[%d] %d, %d, %d\n", i, pat[0],  pat[1], pat[2]);
 
