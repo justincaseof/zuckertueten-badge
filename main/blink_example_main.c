@@ -10,6 +10,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/gpio.h" 
+#include "esp_timer.h"
 #include "esp_log.h"
 #include "led_strip.h"
 #include "sdkconfig.h"
@@ -35,6 +36,7 @@ static led_strip_handle_t led_strip;
 #define ESP_INTR_FLAG_DEFAULT 0
 
 static QueueHandle_t gpio_evt_queue = NULL;
+static int64_t last_press = 0;
 
 static void IRAM_ATTR gpio_isr_handler(void* arg)
 {
@@ -50,11 +52,20 @@ static void gpio_task_example(void* arg)
             int level = gpio_get_level(io_num);
             printf("GPIO[%"PRIu32"] intr, val: %d\n", io_num, gpio_get_level(io_num));
             
-            // only act on falling edges
-            if (level == 1) {
-                op_mode = (op_mode+1) % 4;
-                printf("New mode: %d\n", op_mode);
+            if (level == 0) {
+                last_press = esp_timer_get_time();
+            } else {
+                int64_t diff = esp_timer_get_time() - last_press;
+                printf("  >>> diff: %lld", diff);
+
+                if (diff > 1000000) { // 1 second = 1.000.000 microseconds
+                    op_mode = 2; // clear and then idle.
+                } else {
+                    op_mode = (op_mode+1) % 2;
+                }
+                printf("  >>> New mode: %d\n", op_mode);
             }
+            
         }
     }
 }
@@ -220,8 +231,8 @@ void app_main(void)
     configure_btn();
 
     while (1) {
-        switch (op_mode % 4) {
-            case 1:
+        switch (op_mode) {
+            case 0:
                 blink_led();
                 s_led_state = true;
 
@@ -243,15 +254,20 @@ void app_main(void)
                 leds_upper[0] = val;
                 leds_lower[2] = 150 - val;
                 break;
-            case 2:
+            case 1:
                 blink_led2();
                 break;
-            case 3:
+            case 2:
                  led_strip_clear(led_strip);
                  led_strip_refresh(led_strip);
+                 // send off to idle
+                 op_mode = 4;
                  break;
+            case 3:
+                // idle.
+                break;
             default:
-                // "PAUSE"
+                // nothing.
                 break;
         }
         //vTaskDelay(CONFIG_BLINK_PERIOD / portTICK_PERIOD_MS);
