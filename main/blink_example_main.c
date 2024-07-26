@@ -56,7 +56,7 @@ static void gpio_task_example(void* arg)
                 last_press = esp_timer_get_time();
             } else {
                 int64_t diff = esp_timer_get_time() - last_press;
-                printf("  >>> diff: %lld", diff);
+                printf("  >>> diff: %lld\n", diff);
 
                 if (diff > 1000000) { // 1 second = 1.000.000 microseconds
                     op_mode = 2; // clear and then idle.
@@ -93,6 +93,26 @@ static int patterns[16][3] = {
     { 0,  0,  0},
     { 0,  0,  0},
 };
+static int red_hue = 0;
+static int red_hue_direction = 0; // 0=up, 1=down
+static int red_hue_lower = 0;
+static int red_hue_upper = 60;
+static void adapt_hue() {
+    if (red_hue_direction == 0) {
+        red_hue++;
+    } else {
+        red_hue--;
+    }
+
+    if (red_hue < red_hue_lower) {
+        red_hue_direction = 0;  // now: UP!
+    }
+    if (red_hue > red_hue_upper) {
+        red_hue_direction = 1;  // now: DOWN!
+    }
+    //printf("  >>> RED: %d\n", red_hue);
+}
+
 static void blink_led2(void)
 {
     int step = 4;   // should be devidable by 2
@@ -102,7 +122,8 @@ static void blink_led2(void)
             int led_idx = i + j;
             int pat_idx = (i + j + (idx*step))%(NUM_LEDS);
             int *pat = &patterns[pat_idx];
-            led_strip_set_pixel(led_strip, led_idx, pat[0],  pat[1], pat[2]);
+            //led_strip_set_pixel(led_strip, led_idx, pat[0],  pat[1], pat[2]);
+            led_strip_set_pixel(led_strip, led_idx, red_hue,  pat[1], pat[2]);
             //printf("LED[%d] with PAT[%d] -- %d, %d, %d\n", led_idx, pat_idx, pat[0],  pat[1], pat[2]);
         }
 
@@ -110,7 +131,10 @@ static void blink_led2(void)
 
         //vTaskDelay(63 / portTICK_PERIOD_MS);
     }
+    
     idx++;
+    adapt_hue();
+    
     led_strip_refresh(led_strip);
 }
 
