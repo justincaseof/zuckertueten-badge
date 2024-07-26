@@ -24,6 +24,11 @@ static const char *TAG = "example";
 
 static uint8_t s_led_state = 0;
 
+#define OP_MODE_BLINK_1 0
+#define OP_MODE_BLINK_2 1
+#define OP_MODE_CLEAR   2
+#define OP_MODE_IDLE    3
+#define OP_MODE_FLASH   4
 static uint8_t op_mode = 0;
 
 #ifdef CONFIG_BLINK_LED_STRIP
@@ -36,7 +41,7 @@ static led_strip_handle_t led_strip;
 #define ESP_INTR_FLAG_DEFAULT 0
 
 static QueueHandle_t gpio_evt_queue = NULL;
-static int64_t last_press = 0;
+static int64_t last_press = -1;
 
 static void IRAM_ATTR gpio_isr_handler(void* arg)
 {
@@ -53,16 +58,19 @@ static void gpio_task_example(void* arg)
             printf("GPIO[%"PRIu32"] intr, val: %d\n", io_num, gpio_get_level(io_num));
             
             if (level == 0) {
+                // button pressed
                 last_press = esp_timer_get_time();
             } else {
+                // button released
                 int64_t diff = esp_timer_get_time() - last_press;
                 printf("  >>> diff: %lld\n", diff);
 
                 if (diff > 1000000) { // 1 second = 1.000.000 microseconds
-                    op_mode = 2; // clear and then idle.
+                    op_mode = OP_MODE_CLEAR; // clear and then idle.
                 } else {
                     op_mode = (op_mode+1) % 2;
                 }
+                last_press = -1;
                 printf("  >>> New mode: %d\n", op_mode);
             }
             
@@ -141,7 +149,7 @@ static void blink_led2(void)
                 b += blue_hue;
             }
 
-            led_strip_set_pixel(led_strip, led_idx, r,  g, b);
+            led_strip_set_pixel(led_strip, led_idx, b,  g, r);
             
             //printf("LED[%d] with PAT[%d] -- %d, %d, %d\n", led_idx, pat_idx, pat[0],  pat[1], pat[2]);
         }
@@ -156,6 +164,23 @@ static void blink_led2(void)
     
     led_strip_refresh(led_strip);
 }
+
+static int flash = 0;
+static void flash_led(void)
+{
+    if (flash == 0) {
+        led_strip_clear(led_strip);
+        flash = 1;
+    } else {
+        for (int i = 0; i < NUM_LEDS; i++) {
+            led_strip_set_pixel(led_strip,  i,  75,  75, 75);
+        }
+        flash = 0;
+    }
+    led_strip_refresh(led_strip);
+}
+
+
 
 static int leds_upper[3] = { 0, 0, 0 };
 static int leds_lower[3] = { 0, 0, 0 };
@@ -272,6 +297,8 @@ static void configure_led(void)
 static bool up = true;
 static int val = 0;
 
+
+
 void app_main(void)
 {
     /* Configure the peripheral according to the LED type */
@@ -279,20 +306,30 @@ void app_main(void)
     configure_btn();
 
     while (1) {
+        // check for button long press
+        if (last_press != -1) {
+            int64_t diff = esp_timer_get_time() - last_press;
+            if (diff > 1000000) {
+                printf("  >>> reached 1 second!\n");
+                op_mode = OP_MODE_FLASH;
+                last_press = -1;// good, bad, optional?
+            }
+        }
+
         switch (op_mode) {
-            case 0:
+            case OP_MODE_BLINK_1:
                 blink_led();
                 s_led_state = true;
 
                 if (up) {
                     if (val < 150) {
-                        val = val + 10;
+                        val = val + 5;
                     } else {
                         up = !up;
                     }
                 } else {
-                    if (val > 10) {
-                        val = val - 10;
+                    if (val > 20) {
+                        val = val - 5;
                     } else {
                         up = !up;
                     }
@@ -302,17 +339,20 @@ void app_main(void)
                 leds_upper[0] = val;
                 leds_lower[2] = 150 - val;
                 break;
-            case 1:
+            case OP_MODE_BLINK_2:
                 blink_led2();
                 break;
-            case 2:
+            case OP_MODE_CLEAR:
                  led_strip_clear(led_strip);
                  led_strip_refresh(led_strip);
                  // send off to idle
-                 op_mode = 4;
+                 op_mode = OP_MODE_IDLE;
                  break;
-            case 3:
+            case OP_MODE_IDLE:
                 // idle.
+                break;
+            case OP_MODE_FLASH:
+                flash_led();
                 break;
             default:
                 // nothing.
