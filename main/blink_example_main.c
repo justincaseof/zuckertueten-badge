@@ -14,6 +14,9 @@
 #include "esp_log.h"
 #include "led_strip.h"
 #include "sdkconfig.h"
+// #include "deep_sleep.h"
+#include "esp_sleep.h"
+#include "driver/rtc_io.h"
 
 static const char *TAG = "example";
 
@@ -29,15 +32,21 @@ static uint8_t s_led_state = 0;
 #define OP_MODE_CLEAR   2
 #define OP_MODE_IDLE    3
 #define OP_MODE_FLASH   4
+#define OP_MODE_SLEEP   5
 static uint8_t op_mode = 0;
 
 #ifdef CONFIG_BLINK_LED_STRIP
 
 static led_strip_handle_t led_strip;
 
+// FIXME
+#define CONFIG_BUTTON_SLEEP_PIN 2
 
 #define GPIO_INPUT_BTN      CONFIG_BUTTON_PIN
 #define GPIO_INPUT_PIN_SEL  (1ULL<<GPIO_INPUT_BTN)
+#define GPIO_SLEEP_BTN      CONFIG_BUTTON_SLEEP_PIN
+#define GPIO_SLEEP_BTN_SEL  (1ULL<<GPIO_SLEEP_BTN)
+
 #define ESP_INTR_FLAG_DEFAULT 0
 
 static QueueHandle_t gpio_evt_queue = NULL;
@@ -66,7 +75,8 @@ static void gpio_task_example(void* arg)
                 printf("  >>> diff: %lld\n", diff);
 
                 if (diff > 1000000) { // 1 second = 1.000.000 microseconds
-                    op_mode = OP_MODE_CLEAR; // clear and then idle.
+                    // SLEEP
+                    op_mode = OP_MODE_SLEEP;
                 } else {
                     op_mode = (op_mode+1) % 2;
                 }
@@ -219,16 +229,47 @@ static void blink_led(void)
     }
 }
 
+
+
+static void init_sleep() {
+    printf("entering sleep ...\n");
+    
+    // esp_deep_sleep_enable_gpio_wakeup(GPIO_SLEEP_BTN, ESP_GPIO_WAKEUP_GPIO_LOW);
+    // esp_deep_sleep_enable_gpio_wakeup(GPIO_SLEEP_BTN, ESP_GPIO_WAKEUP_GPIO_HIGH);
+    // esp_deep_sleep_start();
+    
+    // esp_sleep_enable_gpio_wakeup();
+    // esp_light_sleep_start();
+
+    esp_deep_sleep_enable_gpio_wakeup((1ULL << GPIO_SLEEP_BTN), ESP_GPIO_WAKEUP_GPIO_LOW);
+    esp_deep_sleep_start();
+
+    
+    printf("...returned!\n"); // wont ever be displayed ??
+}
+
+
+
+
+
 static void configure_btn(void) 
 {
     gpio_config_t io_conf = {};
 
+    // mode button
     io_conf.intr_type = GPIO_INTR_POSEDGE;
     io_conf.pin_bit_mask = GPIO_INPUT_PIN_SEL;
     io_conf.mode = GPIO_MODE_INPUT;
     io_conf.pull_up_en = 1;
     gpio_config(&io_conf);
-
+    
+    // sleep button
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.pin_bit_mask = GPIO_SLEEP_BTN_SEL;
+    io_conf.mode = GPIO_MODE_INPUT;
+    io_conf.pull_up_en = 1;
+    gpio_config(&io_conf);
+    
     //change gpio interrupt type for one pin
     gpio_set_intr_type(GPIO_INPUT_BTN, GPIO_INTR_ANYEDGE);
 
@@ -353,6 +394,11 @@ void app_main(void)
                 break;
             case OP_MODE_FLASH:
                 flash_led();
+                break;
+            case OP_MODE_SLEEP:
+                led_strip_clear(led_strip);
+                led_strip_refresh(led_strip);
+                init_sleep();
                 break;
             default:
                 // nothing.
