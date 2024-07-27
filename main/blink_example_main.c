@@ -14,7 +14,6 @@
 #include "esp_log.h"
 #include "led_strip.h"
 #include "sdkconfig.h"
-// #include "deep_sleep.h"
 #include "esp_sleep.h"
 #include "driver/rtc_io.h"
 
@@ -38,9 +37,6 @@ static uint8_t op_mode = 0;
 #ifdef CONFIG_BLINK_LED_STRIP
 
 static led_strip_handle_t led_strip;
-
-// FIXME: externalize. on esp32c3 this is "D0" (really!)
-#define CONFIG_BUTTON_SLEEP_PIN 2
 
 #define GPIO_INPUT_BTN      CONFIG_BUTTON_PIN
 #define GPIO_INPUT_PIN_SEL  (1ULL<<GPIO_INPUT_BTN)
@@ -360,7 +356,6 @@ void app_main(void)
             if (diff > 1000000) {
                 printf("  *** reached 1 second!\n");
                 op_mode = OP_MODE_FLASH;
-                //last_press = -1;// good, bad, optional?
             }
         }
 
