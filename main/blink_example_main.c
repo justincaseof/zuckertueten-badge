@@ -70,20 +70,23 @@ static void gpio_task_example(void* arg)
                 // button pressed
                 last_press = esp_timer_get_time();
             } else {
-                // button released
-                int64_t diff = esp_timer_get_time() - last_press;
-                last_press = -1;
+                if (last_press != -1) {
+                    // button released
+                    int64_t diff = esp_timer_get_time() - last_press;
+                    last_press = -1;
 
-                if (diff > 1000000) { // 1 second = 1.000.000 microseconds
-                    // SLEEP
-                    op_mode = OP_MODE_SLEEP;
+                    if (diff > 1000000) { // 1 second = 1.000.000 microseconds
+                        // SLEEP
+                        op_mode = OP_MODE_SLEEP;
+                    } else {
+                        op_mode = (op_mode+1) % 2;
+                    }
+
+                    printf("  >>> diff: %lld\n", diff);
+                    printf("  >>> New mode: %d\n", op_mode);
                 } else {
-                    op_mode = (op_mode+1) % 2;
+                    printf("  >>> !!! prevented pin banging fail\n");
                 }
-
-
-                printf("  >>> diff: %lld\n", diff);
-                printf("  >>> New mode: %d\n", op_mode);
             }
             
         }
@@ -355,9 +358,9 @@ void app_main(void)
         if (last_press != -1) {
             int64_t diff = esp_timer_get_time() - last_press;
             if (diff > 1000000) {
-                printf("  >>> reached 1 second!\n");
+                printf("  *** reached 1 second!\n");
                 op_mode = OP_MODE_FLASH;
-                last_press = -1;// good, bad, optional?
+                //last_press = -1;// good, bad, optional?
             }
         }
 
