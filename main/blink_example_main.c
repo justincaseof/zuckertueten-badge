@@ -39,7 +39,7 @@ static uint8_t op_mode = 0;
 
 static led_strip_handle_t led_strip;
 
-// FIXME
+// FIXME: externalize. on esp32c3 this is "D0" (really!)
 #define CONFIG_BUTTON_SLEEP_PIN 2
 
 #define GPIO_INPUT_BTN      CONFIG_BUTTON_PIN
@@ -72,7 +72,7 @@ static void gpio_task_example(void* arg)
             } else {
                 // button released
                 int64_t diff = esp_timer_get_time() - last_press;
-                printf("  >>> diff: %lld\n", diff);
+                last_press = -1;
 
                 if (diff > 1000000) { // 1 second = 1.000.000 microseconds
                     // SLEEP
@@ -80,7 +80,9 @@ static void gpio_task_example(void* arg)
                 } else {
                     op_mode = (op_mode+1) % 2;
                 }
-                last_press = -1;
+
+
+                printf("  >>> diff: %lld\n", diff);
                 printf("  >>> New mode: %d\n", op_mode);
             }
             
@@ -272,6 +274,7 @@ static void configure_btn(void)
     
     //change gpio interrupt type for one pin
     gpio_set_intr_type(GPIO_INPUT_BTN, GPIO_INTR_ANYEDGE);
+    gpio_set_intr_type(GPIO_SLEEP_BTN, GPIO_INTR_ANYEDGE);
 
     //create a queue to handle gpio event from isr
     gpio_evt_queue = xQueueCreate(10, sizeof(uint32_t));
@@ -282,6 +285,7 @@ static void configure_btn(void)
     gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
     //hook isr handler for specific gpio pin
     gpio_isr_handler_add(GPIO_INPUT_BTN, gpio_isr_handler, (void*) GPIO_INPUT_BTN);
+    gpio_isr_handler_add(GPIO_SLEEP_BTN, gpio_isr_handler, (void*) GPIO_SLEEP_BTN);
 
 
 }
