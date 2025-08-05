@@ -147,7 +147,7 @@ static void blink_led2(void)
         for (j=0; j<step; j++) {
             int led_idx = i + j;
             int pat_idx = (i + j + (idx*step))%(NUM_LEDS);
-            int *pat = &patterns[pat_idx];
+            int *pat = patterns[pat_idx];
             //led_strip_set_pixel(led_strip, led_idx, pat[0],  pat[1], pat[2]);
             
             int r = pat[0];
