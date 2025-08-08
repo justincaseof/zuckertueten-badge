@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "driver/gpio.h" 
+#include "driver/gpio.h"
 #include "esp_timer.h"
 #include "esp_log.h"
 #include "led_strip.h"
@@ -28,232 +28,182 @@ static uint8_t s_led_state = 0;
 
 #define OP_MODE_BLINK_1 0
 #define OP_MODE_BLINK_2 1
-#define OP_MODE_CLEAR   2
-#define OP_MODE_IDLE    3
-#define OP_MODE_FLASH   4
-#define OP_MODE_SLEEP   5
+#define OP_MODE_CLEAR 2
+#define OP_MODE_IDLE 3
+#define OP_MODE_FLASH 4
+#define OP_MODE_SLEEP 5
 static uint8_t op_mode = 0;
 
 #ifdef CONFIG_BLINK_LED_STRIP
 
 static led_strip_handle_t led_strip;
 
-#define GPIO_INPUT_BTN      CONFIG_BUTTON_PIN
-#define GPIO_INPUT_PIN_SEL  (1ULL<<GPIO_INPUT_BTN)
-#define GPIO_SLEEP_BTN      CONFIG_BUTTON_SLEEP_PIN
-#define GPIO_SLEEP_BTN_SEL  (1ULL<<GPIO_SLEEP_BTN)
+#define GPIO_INPUT_BTN CONFIG_BUTTON_PIN
+#define GPIO_INPUT_PIN_SEL (1ULL << GPIO_INPUT_BTN)
+#define GPIO_SLEEP_BTN CONFIG_BUTTON_SLEEP_PIN
+#define GPIO_SLEEP_BTN_SEL (1ULL << GPIO_SLEEP_BTN)
 
 #define ESP_INTR_FLAG_DEFAULT 0
 
 static QueueHandle_t gpio_evt_queue = NULL;
 static int64_t last_press = -1;
 
-static void IRAM_ATTR gpio_isr_handler(void* arg)
+static void IRAM_ATTR gpio_isr_handler(void *arg)
 {
-    uint32_t gpio_num = (uint32_t) arg;
+    uint32_t gpio_num = (uint32_t)arg;
     xQueueSendFromISR(gpio_evt_queue, &gpio_num, NULL);
 }
 
-static void gpio_task_example(void* arg)
+static void gpio_task_example(void *arg)
 {
     uint32_t io_num;
-    for (;;) {
-        if (xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY)) {
+    for (;;)
+    {
+        if (xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY))
+        {
             int level = gpio_get_level(io_num);
-            printf("GPIO[%"PRIu32"] intr, val: %d\n", io_num, gpio_get_level(io_num));
-            
-            if (level == 0) {
+            printf("GPIO[%" PRIu32 "] intr, val: %d\n", io_num, gpio_get_level(io_num));
+
+            if (level == 0)
+            {
                 // button pressed
                 last_press = esp_timer_get_time();
-            } else {
-                if (last_press != -1) {
+            }
+            else
+            {
+                if (last_press != -1)
+                {
                     // button released
                     int64_t diff = esp_timer_get_time() - last_press;
                     last_press = -1;
 
-                    if (diff > 1000000) { // 1 second = 1.000.000 microseconds
+                    if (diff > 1000000)
+                    { // 1 second = 1.000.000 microseconds
                         // SLEEP
                         op_mode = OP_MODE_SLEEP;
-                    } else {
-                        op_mode = (op_mode+1) % 2;
+                    }
+                    else
+                    {
+                        op_mode = (op_mode + 1) % 2;
                     }
 
                     printf("  >>> diff: %lld\n", diff);
                     printf("  >>> New mode: %d\n", op_mode);
-                } else {
+                }
+                else
+                {
                     printf("  >>> !!! prevented pin banging fail\n");
                 }
             }
-            
         }
     }
 }
 
-static int NUM_LEDS = 16;
-static int idx = 0;
-static int patterns[16][3] = {
-    { 0,  0,  32},
-    { 0,  32,  0},
-    { 0,  0,  0},
-    { 0,  0,  0},
+const int NUM_LEDS = 4;
+const int RGB_IDX_RED = 0;
+const int RGB_IDX_GREEN = 1;
+const int RGB_IDX_BLUE = 2;
 
-    { 0,  0,  0},
-    { 0,  0,  0},
-    { 0,  0,  0},
-    { 0,  0,  0},
-    
-    { 0,  0,  0},
-    { 0,  0,  0},
-    { 0,  0,  0},
-    { 0,  0,  0},
-    
-    { 0,  0,  0},
-    { 0,  0,  0},
-    { 0,  0,  0},
-    { 0,  0,  0},
+static int mode_2_idx = 0;
+static uint32_t mode_2_patterns[4][3] = {
+    {0, 0, 32},
+    {0, 32, 0},
+    {32, 0, 0},
+    {32, 32, 32},
 };
-static int red_hue = 0;
-static int red_hue_direction = 0; // 0=up, 1=down
-static int red_hue_lower = 0;
-static int red_hue_upper = 60;
-static int blue_hue = 0;
-static int blue_hue_direction = 0; // 0=up, 1=down
-static int blue_hue_lower = 0;
-static int blue_hue_upper = 60;
-static void adapt_hue() {
-    if (red_hue_direction == 0) {
-        red_hue++;
-    } else {
-        red_hue--;
-    }
 
-    if (red_hue < red_hue_lower) {
-        red_hue_direction = 0;  // now: UP!
-    }
-    if (red_hue > red_hue_upper) {
-        red_hue_direction = 1;  // now: DOWN!
-    }
-    //printf("  >>> RED: %d\n", red_hue);
-
-    // TODO
-    blue_hue = red_hue;
-}
-
+static int change_delay = 0;
 static void blink_led2(void)
 {
-    int step = 4;   // should be devidable by 2
-    int i,j;
-    for (i = 0; i < NUM_LEDS; i+=step) {
-        for (j=0; j<step; j++) {
-            int led_idx = i + j;
-            int pat_idx = (i + j + (idx*step))%(NUM_LEDS);
-            int *pat = patterns[pat_idx];
-            //led_strip_set_pixel(led_strip, led_idx, pat[0],  pat[1], pat[2]);
-            
-            int r = pat[0];
-            int g = pat[1];
-            int b = pat[2];
-            if (led_idx < 8 && led_idx >= 0) {
-                r += red_hue;
-            }
-            if (led_idx >= 8 && led_idx < NUM_LEDS) {
-                b += blue_hue;
-            }
-
-            led_strip_set_pixel(led_strip, led_idx, b,  g, r);
-            
-            //printf("LED[%d] with PAT[%d] -- %d, %d, %d\n", led_idx, pat_idx, pat[0],  pat[1], pat[2]);
-        }
-
-        //printf("LED[%d] %d, %d, %d\n", i, pat[0],  pat[1], pat[2]);
-
-        //vTaskDelay(63 / portTICK_PERIOD_MS);
+    if (change_delay % 128 == 0) {
+        // FLASH !
+        led_strip_set_pixel(led_strip, 0, 200, 200, 200);
+        led_strip_set_pixel(led_strip, 1, 200, 200, 200);
+        led_strip_set_pixel(led_strip, 2, 200, 200, 200);
+        led_strip_set_pixel(led_strip, 3, 200, 200, 200);
     }
-    
-    idx++;
-    adapt_hue();
-    
+    else {
+        // ROTATE
+        int led_idx = mode_2_idx % NUM_LEDS;
+        int led_idx_0 = (led_idx + 0) % NUM_LEDS;
+        int led_idx_1 = (led_idx + 1) % NUM_LEDS;
+        int led_idx_2 = (led_idx + 2) % NUM_LEDS;
+        int led_idx_3 = (led_idx + 3) % NUM_LEDS;
+        led_strip_set_pixel(led_strip, 0, mode_2_patterns[led_idx_0][RGB_IDX_RED], mode_2_patterns[led_idx_0][RGB_IDX_GREEN], mode_2_patterns[led_idx_0][RGB_IDX_BLUE]);
+        led_strip_set_pixel(led_strip, 1, mode_2_patterns[led_idx_1][RGB_IDX_RED], mode_2_patterns[led_idx_1][RGB_IDX_GREEN], mode_2_patterns[led_idx_1][RGB_IDX_BLUE]);
+        led_strip_set_pixel(led_strip, 2, mode_2_patterns[led_idx_2][RGB_IDX_RED], mode_2_patterns[led_idx_2][RGB_IDX_GREEN], mode_2_patterns[led_idx_2][RGB_IDX_BLUE]);
+        led_strip_set_pixel(led_strip, 3, mode_2_patterns[led_idx_3][RGB_IDX_RED], mode_2_patterns[led_idx_3][RGB_IDX_GREEN], mode_2_patterns[led_idx_3][RGB_IDX_BLUE]);
+    }
+
+
+    if (change_delay++ % 2 == 0) {
+        mode_2_idx++;
+    }
+    // refresh leds
     led_strip_refresh(led_strip);
 }
 
-static int flash = 0;
-static void flash_led(void)
+static int mode_2_flash_onoff = 0;
+static void blink_led_mode_3_flash_led(void)
 {
-    if (flash == 0) {
+    if (mode_2_flash_onoff == 0)
+    {
         led_strip_clear(led_strip);
-        flash = 1;
-    } else {
-        for (int i = 0; i < NUM_LEDS; i++) {
-            led_strip_set_pixel(led_strip,  i,  75,  75, 75);
+        mode_2_flash_onoff = 1;
+    }
+    else
+    {
+        for (int i = 0; i < NUM_LEDS; i++)
+        {
+            led_strip_set_pixel(led_strip, i, 75, 75, 75);
         }
-        flash = 0;
+        mode_2_flash_onoff = 0;
     }
     led_strip_refresh(led_strip);
 }
 
+static int leds_upper[3] = {0, 0, 0};
+static int leds_lower[3] = {0, 0, 0};
 
-
-static int leds_upper[3] = { 0, 0, 0 };
-static int leds_lower[3] = { 0, 0, 0 };
-
-static void blink_led(void)
+static void blink_led_mode_1(void)
 {
     /* If the addressable LED is enabled */
-    if (s_led_state) {      
+    if (s_led_state)
+    {
         //
-        led_strip_set_pixel(led_strip,  0,  leds_lower[0],  leds_lower[1], leds_lower[2]);
-        led_strip_set_pixel(led_strip,  1,  leds_lower[0],  leds_lower[1], leds_lower[2]);
-        led_strip_set_pixel(led_strip,  2,  leds_lower[0],  leds_lower[1], leds_lower[2]);
-        led_strip_set_pixel(led_strip,  3,  leds_lower[0],  leds_lower[1], leds_lower[2]);
-        //
-        led_strip_set_pixel(led_strip,  4,  leds_lower[0],  leds_lower[1], leds_lower[2]);
-        led_strip_set_pixel(led_strip,  5,  leds_lower[0],  leds_lower[1], leds_lower[2]);
-        led_strip_set_pixel(led_strip,  6,  leds_lower[0],  leds_lower[1], leds_lower[2]);
-        led_strip_set_pixel(led_strip,  7,  leds_lower[0],  leds_lower[1], leds_lower[2]);
-        //
-        led_strip_set_pixel(led_strip,  8,  leds_upper[0],  leds_upper[1], leds_upper[2]);
-        led_strip_set_pixel(led_strip,  9,  leds_upper[0],  leds_upper[1], leds_upper[2]);
-        led_strip_set_pixel(led_strip, 10,  leds_upper[0],  leds_upper[1], leds_upper[2]);
-        led_strip_set_pixel(led_strip, 11,  leds_upper[0],  leds_upper[1], leds_upper[2]);
-        //
-        led_strip_set_pixel(led_strip, 12,  leds_upper[0],  leds_upper[1], leds_upper[2]);
-        led_strip_set_pixel(led_strip, 13,  leds_upper[0],  leds_upper[1], leds_upper[2]);
-        led_strip_set_pixel(led_strip, 14,  leds_upper[0],  leds_upper[1], leds_upper[2]);
-        led_strip_set_pixel(led_strip, 15,  leds_upper[0],  leds_upper[1], leds_upper[2]);
+        led_strip_set_pixel(led_strip, 0, leds_lower[RGB_IDX_RED], leds_lower[RGB_IDX_GREEN], leds_lower[RGB_IDX_BLUE]);
+        led_strip_set_pixel(led_strip, 1, leds_lower[RGB_IDX_RED], leds_lower[RGB_IDX_GREEN], leds_lower[RGB_IDX_BLUE]);
+        led_strip_set_pixel(led_strip, 2, leds_upper[RGB_IDX_RED], leds_upper[RGB_IDX_GREEN], leds_upper[RGB_IDX_BLUE]);
+        led_strip_set_pixel(led_strip, 3, leds_upper[RGB_IDX_RED], leds_upper[RGB_IDX_GREEN], leds_upper[RGB_IDX_BLUE]);
 
-        //
         /* Refresh the strip to send data */
         led_strip_refresh(led_strip);
-    } else {
+    }
+    else
+    {
         /* Set all LED off to clear all pixels */
         led_strip_clear(led_strip);
     }
 }
 
-
-
-static void init_sleep() {
+static void init_sleep()
+{
     printf("entering sleep ...\n");
-    
+
     // esp_deep_sleep_enable_gpio_wakeup(GPIO_SLEEP_BTN, ESP_GPIO_WAKEUP_GPIO_LOW);
     // esp_deep_sleep_enable_gpio_wakeup(GPIO_SLEEP_BTN, ESP_GPIO_WAKEUP_GPIO_HIGH);
     // esp_deep_sleep_start();
-    
+
     // esp_sleep_enable_gpio_wakeup();
     // esp_light_sleep_start();
 
     esp_deep_sleep_enable_gpio_wakeup((1ULL << GPIO_SLEEP_BTN), ESP_GPIO_WAKEUP_GPIO_LOW);
     esp_deep_sleep_start();
 
-    
     printf("...returned!\n"); // wont ever be displayed ??
 }
 
-
-
-
-
-static void configure_btn(void) 
+static void configure_btn(void)
 {
     gpio_config_t io_conf = {};
 
@@ -263,30 +213,28 @@ static void configure_btn(void)
     io_conf.mode = GPIO_MODE_INPUT;
     io_conf.pull_up_en = 1;
     gpio_config(&io_conf);
-    
+
     // sleep button
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.pin_bit_mask = GPIO_SLEEP_BTN_SEL;
     io_conf.mode = GPIO_MODE_INPUT;
     io_conf.pull_up_en = 1;
     gpio_config(&io_conf);
-    
-    //change gpio interrupt type for one pin
+
+    // change gpio interrupt type for one pin
     gpio_set_intr_type(GPIO_INPUT_BTN, GPIO_INTR_ANYEDGE);
     gpio_set_intr_type(GPIO_SLEEP_BTN, GPIO_INTR_ANYEDGE);
 
-    //create a queue to handle gpio event from isr
+    // create a queue to handle gpio event from isr
     gpio_evt_queue = xQueueCreate(10, sizeof(uint32_t));
-    //start gpio task
+    // start gpio task
     xTaskCreate(gpio_task_example, "gpio_task_example", 2048, NULL, 10, NULL);
 
-    //install gpio isr service
+    // install gpio isr service
     gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
-    //hook isr handler for specific gpio pin
-    gpio_isr_handler_add(GPIO_INPUT_BTN, gpio_isr_handler, (void*) GPIO_INPUT_BTN);
-    gpio_isr_handler_add(GPIO_SLEEP_BTN, gpio_isr_handler, (void*) GPIO_SLEEP_BTN);
-
-
+    // hook isr handler for specific gpio pin
+    gpio_isr_handler_add(GPIO_INPUT_BTN, gpio_isr_handler, (void *)GPIO_INPUT_BTN);
+    gpio_isr_handler_add(GPIO_SLEEP_BTN, gpio_isr_handler, (void *)GPIO_SLEEP_BTN);
 }
 
 static void configure_led(void)
@@ -338,10 +286,11 @@ static void configure_led(void)
 #error "unsupported LED type"
 #endif
 
-static bool up = true;
-static int val = 0;
-
-
+static bool mode_1_up = true;
+static int mode_1_val_max = 200;
+static int mode_1_val_min = 20;
+static int mode_1_val = 0;
+static int mode_1_val_step = 5;
 
 void app_main(void)
 {
@@ -349,65 +298,87 @@ void app_main(void)
     configure_led();
     configure_btn();
 
-    while (1) {
+    while (1)
+    {
         // check for button long press
-        if (last_press != -1) {
+        if (last_press != -1)
+        {
             int64_t diff = esp_timer_get_time() - last_press;
-            if (diff > 1000000) {
+            if (diff > 1000000)
+            {
                 printf("  *** reached 1 second!\n");
                 op_mode = OP_MODE_FLASH;
             }
         }
 
-        switch (op_mode) {
-            case OP_MODE_BLINK_1:
-                blink_led();
-                s_led_state = true;
+        switch (op_mode)
+        {
+        case OP_MODE_BLINK_1:
+            blink_led_mode_1();
+            s_led_state = true;
 
-                if (up) {
-                    if (val < 150) {
-                        val = val + 5;
-                    } else {
-                        up = !up;
-                    }
-                } else {
-                    if (val > 20) {
-                        val = val - 5;
-                    } else {
-                        up = !up;
-                    }
+            if (mode_1_up)
+            {
+                if (mode_1_val < mode_1_val_max)
+                {
+                    mode_1_val = mode_1_val + mode_1_val_step;
                 }
-                
-                // upper red
-                leds_upper[0] = val;
-                leds_lower[2] = 150 - val;
-                break;
-            case OP_MODE_BLINK_2:
-                blink_led2();
-                break;
-            case OP_MODE_CLEAR:
-                 led_strip_clear(led_strip);
-                 led_strip_refresh(led_strip);
-                 // send off to idle
-                 op_mode = OP_MODE_IDLE;
-                 break;
-            case OP_MODE_IDLE:
-                // idle.
-                break;
-            case OP_MODE_FLASH:
-                flash_led();
-                break;
-            case OP_MODE_SLEEP:
-                led_strip_clear(led_strip);
-                led_strip_refresh(led_strip);
-                init_sleep();
-                break;
-            default:
-                // nothing.
-                break;
+                else
+                {
+                    mode_1_up = !mode_1_up;
+                }
+            }
+            else
+            {
+                if (mode_1_val > mode_1_val_min)
+                {
+                    mode_1_val = mode_1_val - mode_1_val_step;
+                }
+                else
+                {
+                    mode_1_up = !mode_1_up;
+                }
+            }
+
+            // upper: red
+            leds_upper[RGB_IDX_RED] = mode_1_val + 50;
+            leds_upper[RGB_IDX_GREEN] = 30;
+            leds_upper[RGB_IDX_BLUE] = 15;
+            // lower: green
+            leds_lower[RGB_IDX_RED] = 0;
+            leds_lower[RGB_IDX_GREEN] = mode_1_val_max - mode_1_val;
+            leds_lower[RGB_IDX_BLUE] = 0;
+            break;
+        case OP_MODE_BLINK_2:
+            blink_led2();
+
+            break;
+        case OP_MODE_CLEAR:
+            led_strip_clear(led_strip);
+            led_strip_refresh(led_strip);
+
+            // send off to idle
+            op_mode = OP_MODE_IDLE;
+            break;
+        case OP_MODE_IDLE:
+            // idle.
+            break;
+
+        case OP_MODE_FLASH:
+            blink_led_mode_3_flash_led();
+            break;
+
+        case OP_MODE_SLEEP:
+            led_strip_clear(led_strip);
+            led_strip_refresh(led_strip);
+            init_sleep();
+            break;
+
+        default:
+            // nothing.
+            break;
         }
-        //vTaskDelay(CONFIG_BLINK_PERIOD / portTICK_PERIOD_MS);
+        // vTaskDelay(CONFIG_BLINK_PERIOD / portTICK_PERIOD_MS);
         vTaskDelay(50 / portTICK_PERIOD_MS);
     }
 }
-
