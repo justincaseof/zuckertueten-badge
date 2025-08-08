@@ -342,11 +342,11 @@ void app_main(void)
 
             // upper: red
             leds_upper[RGB_IDX_RED] = mode_1_val + 50;
-            leds_upper[RGB_IDX_GREEN] = 30;
-            leds_upper[RGB_IDX_BLUE] = 15;
+            leds_upper[RGB_IDX_GREEN] = mode_1_val / 10;
+            leds_upper[RGB_IDX_BLUE] = 0;
             // lower: green
             leds_lower[RGB_IDX_RED] = 0;
-            leds_lower[RGB_IDX_GREEN] = mode_1_val_max - mode_1_val;
+            leds_lower[RGB_IDX_GREEN] = mode_1_val_max - mode_1_val + 20;
             leds_lower[RGB_IDX_BLUE] = 0;
             break;
         case OP_MODE_BLINK_2:
